@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>星空孔明灯</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #0a0a2a;
+            touch-action: none;
+        }
+
+        #lanternCanvas {
+            display: block;
+        }
+    </style>
+</head>
+
+<body>
+    <canvas id="lanternCanvas"></canvas>
+
+    <script>
+        // 初始化Canvas
+        const canvas = document.getElementById('lanternCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // 设置Canvas尺寸
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // 物理参数
+        const PHYSICS = {
+            liftForce: -0.02, // 改为负值使y减小
+            windForce: 0.005,  // 减小风力影响
+            airResistance: 0.99,
+            turbulence: 0.003  // 减小湍流
+        };
+
+        // 星空背景类
+        class Starfield {
+            constructor() {
+                this.stars = [];
+                this.init();
+            }
+
+            init() {
+                for (let i = 0; i < 200; i++) {
+                    this.stars.push({
+                        x: Math.random() * canvas.width,
+                        y: Math.random() * canvas.height,
+                        size: Math.random() * 2 + 0.5,
+                        brightness: Math.random() * 0.7 + 0.3,
+                        speed: Math.random() * 0.05 + 0.02
+                    });
+                }
+            }
+
+            update() {
+                for (let i = 0; i < this.stars.length; i++) {
+                    const star = this.stars[i];
+                    star.y -= star.speed;
+                    if (star.y < 0) {
+                        star.y = canvas.height;
+                        star.x = Math.random() * canvas.width;
+                    }
+
+                    // 星星闪烁效果
+                    star.brightness += (Math.random() - 0.5) * 0.05;
+                    star.brightness = Math.max(0.3, Math.min(1, star.brightness));
+                }
+            }
+
+            draw() {
+                ctx.fillStyle = 'white';
+                for (let i = 0; i < this.stars.length; i++) {
+                    const star = this.stars[i];
+                    ctx.globalAlpha = star.brightness;
+                    ctx.beginPath();
+                    ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.globalAlpha = 1;
+            }
+        }
+
+        // 孔明灯类
+        class Lantern {
+            constructor() {
+                // 从底部外生成（确保初始可见）
+                this.x = Math.random() * canvas.width;
+                this.y = canvas.height + 50;
+                this.vx = Math.random() * 0.2 - 0.1; // 减小初始水平速度
+                this.vy = Math.random() * 0.2 + 0.3; // 初始上升速度（正值使y减小）
+                this.width = 80 + Math.random() * 60;
+                this.height = this.width * 0.7;
+                this.rotation = Math.random() * 0.05 - 0.025; // 减小初始旋转
+                this.rotationSpeed = (Math.random() - 0.5) * 0.002; // 减小旋转速度
+                this.opacity = 1;
+            }
+
+            update() {
+                // 物理运动
+                this.vy = (this.vy + PHYSICS.liftForce) * PHYSICS.airResistance;
+                this.vx = (this.vx + (Math.random() - 0.5) * PHYSICS.turbulence) * PHYSICS.airResistance;
+
+                this.x += this.vx;
+                this.y += this.vy; // y值减小表示上升
+                this.rotation += this.rotationSpeed;
+
+                // 限制旋转角度（防止颠倒）
+                this.rotation = Math.max(-0.2, Math.min(0.2, this.rotation));
+
+                // 可见性判断
+                const isFullyVisible = this.y < canvas.height - this.height / 2;
+                const isAboveTop = this.y < -this.height;
+
+                if (isAboveTop) {
+                    this.opacity = 0;
+                } else if (isFullyVisible) {
+                    const progress = -this.y / (canvas.height + this.height);
+                    this.opacity = 1 - progress * progress;
+                }
+
+                return this.opacity > 0;
+            }
+
+            draw() {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.rotation);
+                ctx.globalAlpha = this.opacity;
+
+                // 绘制灯笼主体（减小弧度）
+                this.drawLanternBody();
+
+                // 绘制静态火苗
+                this.drawFlame();
+
+                ctx.restore();
+            }
+
+            drawLanternBody() {
+                // 减小椭圆弧度（增大第二个半径参数）
+                ctx.beginPath();
+                ctx.ellipse(0, 0, this.width / 3, this.height / 1.8, 0, 0, Math.PI * 2);
+
+                const gradient = ctx.createLinearGradient(0, -this.height / 2, 0, this.height / 2);
+                gradient.addColorStop(0, 'rgba(255, 120, 50, 0.9)');
+                gradient.addColorStop(0.7, 'rgba(255, 80, 30, 0.8)');
+                gradient.addColorStop(1, 'rgba(255, 60, 20, 0.7)');
+
+                ctx.fillStyle = gradient;
+                ctx.fill();
+
+                ctx.strokeStyle = 'rgba(150, 60, 20, 0.6)';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                // 灯笼底部（保留但减小尺寸）
+                ctx.beginPath();
+                ctx.ellipse(0, this.height * 0.4, this.width * 0.35, this.height * 0.06, 0, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(100, 40, 10, 0.8)';
+                ctx.fill();
+            }
+
+            drawFlame() {
+                // 静态火苗（简单三角形）
+                ctx.beginPath();
+                ctx.moveTo(0, -this.height * 0.2);
+                ctx.lineTo(this.width * 0.15, -this.height * 0.4);
+                ctx.lineTo(-this.width * 0.15, -this.height * 0.4);
+                ctx.closePath();
+
+                const flameGradient = ctx.createLinearGradient(0, -this.height * 0.2, 0, -this.height * 0.4);
+                flameGradient.addColorStop(0, 'rgba(255, 255, 100, 0.9)');
+                flameGradient.addColorStop(1, 'rgba(255, 150, 0, 0.7)');
+
+                ctx.fillStyle = flameGradient;
+                ctx.fill();
+            }
+        }
+
+        // 游戏主逻辑
+        const lanterns = [];
+        const starfield = new Starfield();
+
+        // 自动生成孔明灯（初始生成3个）
+        function initLanterns() {
+            for (let i = 0; i < 3; i++) {
+                setTimeout(() => {
+                    lanterns.push(new Lantern());
+                }, i * 800);
+            }
+
+            // 持续生成
+            setInterval(() => {
+                if (lanterns.length < 8) {
+                    lanterns.push(new Lantern());
+                }
+            }, 2000);
+        }
+
+        // 动画循环
+        function animate() {
+            // 清除画布（使用半透明实现拖尾效果）
+            ctx.fillStyle = 'rgba(10, 10, 30, 0.15)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // 更新和绘制星空
+            starfield.update();
+            starfield.draw();
+
+            // 更新和绘制孔明灯
+            for (let i = lanterns.length - 1; i >= 0; i--) {
+                if (!lanterns[i].update()) {
+                    lanterns.splice(i, 1);
+                } else {
+                    lanterns[i].draw();
+                }
+            }
+
+            requestAnimationFrame(animate);
+        }
+
+        // 启动
+        initLanterns();
+        animate();
+
+        // 交互
+        canvas.addEventListener('click', () => {
+            lanterns.push(new Lantern());
+        });
+
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            lanterns.push(new Lantern());
+        });
+    </script>
+</body>
+
+</html>
