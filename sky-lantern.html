@@ -1,26 +1,70 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>真实风格孔明灯</title>
+    <title>完美孔明灯</title>
     <style>
       body {
         margin: 0;
         overflow: hidden;
         background: #0a0a2a;
         touch-action: none;
+        font-family: "Microsoft YaHei", sans-serif;
       }
       #lanternCanvas {
         display: block;
+      }
+      #controls {
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        z-index: 100;
+      }
+      #wishInput {
+        padding: 8px 12px;
+        border-radius: 20px;
+        border: 1px solid #ff8c00;
+        background: rgba(0, 0, 0, 0.5);
+        color: white;
+        width: 250px;
+        text-align: center;
+        outline: none;
+      }
+      #setWish {
+        padding: 8px 20px;
+        border-radius: 20px;
+        background: #ff8c00;
+        color: white;
+        border: none;
+        cursor: pointer;
+        transition: all 0.3s;
+      }
+      #setWish:hover {
+        background: #ff6b00;
       }
     </style>
   </head>
   <body>
     <canvas id="lanternCanvas"></canvas>
+    <div id="controls">
+      <input
+        type="text"
+        id="wishInput"
+        placeholder="输入你的祝福语..."
+        maxlength="10" />
+      <button id="setWish">放飞祝福</button>
+    </div>
 
     <script>
       // 初始化Canvas
       const canvas = document.getElementById("lanternCanvas");
       const ctx = canvas.getContext("2d");
+      const wishInput = document.getElementById("wishInput");
+      const setWishBtn = document.getElementById("setWish");
 
       // 设置Canvas尺寸
       function resizeCanvas() {
@@ -37,6 +81,10 @@
         airResistance: 0.99,
         turbulence: 0.003,
       };
+
+      // 全局祝福语
+      let currentWish = "";
+      let allowLanterns = false;
 
       // 星空背景类
       class Starfield {
@@ -86,17 +134,18 @@
 
       // 孔明灯类
       class Lantern {
-        constructor() {
+        constructor(wishText) {
           this.x = Math.random() * canvas.width;
           this.y = canvas.height + 50;
           this.vx = Math.random() * 0.2 - 0.1;
           this.vy = Math.random() * 0.2 + 0.3;
-          this.width = 100 + Math.random() * 80;
+          this.width = 120 + Math.random() * 80;
           this.height = this.width * 1.2;
           this.rotation = Math.random() * 0.05 - 0.025;
           this.rotationSpeed = (Math.random() - 0.5) * 0.002;
           this.opacity = 1;
           this.flameFlicker = 0;
+          this.wish = wishText || currentWish;
         }
 
         update() {
@@ -110,7 +159,6 @@
           this.rotation += this.rotationSpeed;
           this.rotation = Math.max(-0.2, Math.min(0.2, this.rotation));
 
-          // 火苗闪烁效果
           this.flameFlicker = Math.sin(Date.now() / 200) * 0.1 + 1;
 
           const isFullyVisible = this.y < canvas.height - this.height / 2;
@@ -132,46 +180,59 @@
           ctx.rotate(this.rotation);
           ctx.globalAlpha = this.opacity;
 
-          // 绘制上宽下窄的孔明灯主体
           this.drawLanternBody();
-
-          // 绘制真实火焰效果
           this.drawRealisticFlame();
+
+          if (this.wish) {
+            this.drawWishText();
+          }
 
           ctx.restore();
         }
 
         drawLanternBody() {
           const topWidth = this.width;
-          const bottomWidth = this.width * 0.6;
+          const bottomWidth = this.width * 0.83;
           const bodyHeight = this.height * 0.8;
+          const cornerRadius = 15;
 
           ctx.beginPath();
 
-          // 上边缘（带圆角）
-          ctx.moveTo(-topWidth / 2 + 10, -bodyHeight / 2);
-          ctx.arcTo(
-            topWidth / 2,
-            -bodyHeight / 2,
-            topWidth / 2,
-            -bodyHeight / 2 + 10,
-            10
+          // 从左上角开始绘制，确保完美连接
+          // 移动到左上角圆角的起点
+          ctx.moveTo(-topWidth / 2, -bodyHeight / 2 + cornerRadius);
+
+          // 绘制左上角圆角
+          ctx.arc(
+            -topWidth / 2 + cornerRadius,
+            -bodyHeight / 2 + cornerRadius,
+            cornerRadius,
+            Math.PI,
+            Math.PI * 1.5,
+            false
           );
 
-          // 右侧边缘（上宽下窄）
+          // 绘制上边缘（完全水平）
+          ctx.lineTo(topWidth / 2 - cornerRadius, -bodyHeight / 2);
+
+          // 绘制右上角圆角
+          ctx.arc(
+            topWidth / 2 - cornerRadius,
+            -bodyHeight / 2 + cornerRadius,
+            cornerRadius,
+            Math.PI * 1.5,
+            0,
+            false
+          );
+
+          // 右侧边缘（直线下到底部）
           ctx.lineTo(bottomWidth / 2, bodyHeight / 2);
 
-          // 下边缘（带圆角）
-          ctx.arcTo(
-            -bottomWidth / 2,
-            bodyHeight / 2,
-            -bottomWidth / 2,
-            bodyHeight / 2 - 10,
-            10
-          );
+          // 下边缘（完全水平）
+          ctx.lineTo(-bottomWidth / 2, bodyHeight / 2);
 
-          // 左侧边缘（下窄上宽）
-          ctx.lineTo(-topWidth / 2, -bodyHeight / 2 + 10);
+          // 左侧边缘（直线上到顶部）
+          ctx.lineTo(-topWidth / 2, -bodyHeight / 2 + cornerRadius);
 
           // 渐变填充
           const gradient = ctx.createLinearGradient(
@@ -205,14 +266,12 @@
           const flameHeight = this.height * 0.4;
           const baseWidth = this.width * 0.2;
 
-          // 火焰核心（明亮部分）
           ctx.save();
           ctx.translate(0, this.height / 2 - 15);
 
-          // 火焰抖动效果
           const flickerOffset = (Math.random() - 0.5) * 5 * this.flameFlicker;
 
-          // 主火焰形状（使用贝塞尔曲线）
+          // 主火焰
           ctx.beginPath();
           ctx.moveTo(0, 0);
           ctx.bezierCurveTo(
@@ -232,7 +291,6 @@
             0
           );
 
-          // 火焰渐变
           const flameGradient = ctx.createLinearGradient(0, 0, 0, -flameHeight);
           flameGradient.addColorStop(0, "rgba(255, 255, 200, 0.9)");
           flameGradient.addColorStop(0.5, "rgba(255, 200, 50, 0.8)");
@@ -241,7 +299,7 @@
           ctx.fillStyle = flameGradient;
           ctx.fill();
 
-          // 火焰外焰（半透明边缘）
+          // 外焰
           ctx.beginPath();
           ctx.moveTo(0, 0);
           ctx.bezierCurveTo(
@@ -266,25 +324,36 @@
 
           ctx.restore();
         }
+
+        drawWishText() {
+          ctx.save();
+          ctx.translate(0, -this.height * 0.1);
+
+          // 文字阴影
+          ctx.shadowColor = "rgba(0, 0, 0, 0.7)";
+          ctx.shadowBlur = 5;
+          ctx.shadowOffsetX = 2;
+          ctx.shadowOffsetY = 2;
+
+          // 文字样式
+          ctx.font = `bold ${Math.min(
+            24,
+            this.width / 5
+          )}px "Microsoft YaHei", sans-serif`;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+
+          // 绘制文字
+          ctx.fillText(this.wish, 0, 0);
+
+          ctx.restore();
+        }
       }
 
       // 游戏主逻辑
       const lanterns = [];
       const starfield = new Starfield();
-
-      function initLanterns() {
-        for (let i = 0; i < 3; i++) {
-          setTimeout(() => {
-            lanterns.push(new Lantern());
-          }, i * 800);
-        }
-
-        setInterval(() => {
-          if (lanterns.length < 8) {
-            lanterns.push(new Lantern());
-          }
-        }, 2000);
-      }
 
       function animate() {
         ctx.fillStyle = "rgba(10, 10, 30, 0.15)";
@@ -304,19 +373,26 @@
         requestAnimationFrame(animate);
       }
 
+      // 设置祝福语
+      setWishBtn.addEventListener("click", () => {
+        const wishText = wishInput.value.trim();
+        if (wishText) {
+          currentWish = wishText;
+          allowLanterns = true;
+          lanterns.push(new Lantern(currentWish));
+          wishInput.value = "";
+        }
+      });
+
+      // 回车键提交
+      wishInput.addEventListener("keypress", (e) => {
+        if (e.key === "Enter") {
+          setWishBtn.click();
+        }
+      });
+
       // 启动
-      initLanterns();
       animate();
-
-      // 交互
-      canvas.addEventListener("click", () => {
-        lanterns.push(new Lantern());
-      });
-
-      canvas.addEventListener("touchstart", (e) => {
-        e.preventDefault();
-        lanterns.push(new Lantern());
-      });
     </script>
   </body>
 </html>
